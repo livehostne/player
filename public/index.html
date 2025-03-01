@@ -1,0 +1,257 @@
+<!-- public/index.html -->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stream Player Seguro</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/video.js/7.20.3/video-js.min.css">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f7f7f7;
+      color: #333;
+    }
+    h1 {
+      text-align: center;
+      color: #2c3e50;
+    }
+    .input-container {
+      margin-bottom: 20px;
+      background-color: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 15px;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+      box-sizing: border-box;
+      font-size: 14px;
+    }
+    .buttons {
+      display: flex;
+      gap: 10px;
+    }
+    button {
+      padding: 12px 20px;
+      background-color: #3498db;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      flex-grow: 1;
+      font-weight: bold;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #2980b9;
+    }
+    button#copyUrlBtn {
+      background-color: #2ecc71;
+    }
+    button#copyUrlBtn:hover {
+      background-color: #27ae60;
+    }
+    .video-container {
+      width: 100%;
+      margin-top: 20px;
+      background-color: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+    .video-js {
+      width: 100%;
+      aspect-ratio: 16/9;
+    }
+    .status {
+      margin-top: 15px;
+      padding: 10px;
+      border-radius: 4px;
+      text-align: center;
+      display: none;
+    }
+    .success {
+      background-color: rgba(46, 204, 113, 0.2);
+      color: #27ae60;
+      display: block;
+    }
+    .error {
+      background-color: rgba(231, 76, 60, 0.2);
+      color: #c0392b;
+      display: block;
+    }
+    .hidden {
+      display: none;
+    }
+    .generated-url {
+      font-family: monospace;
+      background-color: #f1f1f1;
+      padding: 10px;
+      border-radius: 4px;
+      margin-top: 10px;
+      word-break: break-all;
+      display: none;
+    }
+    footer {
+      margin-top: 30px;
+      text-align: center;
+      color: #7f8c8d;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Stream Player Seguro</h1>
+  
+  <div class="input-container">
+    <input type="text" id="m3u8Url" placeholder="Cole a URL do stream M3U8 aqui (ex: https://new.m3u8.one/sbt/index.m3u8)" 
+           value="">
+    <div class="buttons">
+      <button id="processBtn">Processar Stream</button>
+      <button id="playBtn" disabled>Reproduzir</button>
+      <button id="copyUrlBtn" disabled>Copiar Link</button>
+    </div>
+    <div id="status" class="status"></div>
+    <div id="generatedUrl" class="generated-url"></div>
+  </div>
+  
+  <div class="video-container">
+    <video id="videoPlayer" class="video-js vjs-default-skin vjs-big-play-centered" controls></video>
+  </div>
+
+  <footer>
+    &copy; 2025 Stream Proxy Player - Todas as fontes originais são ocultadas para sua segurança.
+  </footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/video.js/7.20.3/video.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/videojs-contrib-hls/5.15.0/videojs-contrib-hls.min.js"></script>
+  
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Inicializar o player Video.js
+      const player = videojs('videoPlayer', {
+        fluid: true,
+        responsive: true,
+        html5: {
+          hls: {
+            overrideNative: true
+          }
+        }
+      });
+
+      // Elementos da interface
+      const m3u8UrlInput = document.getElementById('m3u8Url');
+      const processBtn = document.getElementById('processBtn');
+      const playBtn = document.getElementById('playBtn');
+      const copyUrlBtn = document.getElementById('copyUrlBtn');
+      const statusDiv = document.getElementById('status');
+      const generatedUrlDiv = document.getElementById('generatedUrl');
+      
+      // Armazenar o ID do stream atual
+      let currentStreamId = null;
+      
+      // Função para mostrar mensagem de status
+      function showStatus(message, isError = false) {
+        statusDiv.textContent = message;
+        statusDiv.className = 'status ' + (isError ? 'error' : 'success');
+      }
+      
+      // Função para esconder mensagem de status
+      function hideStatus() {
+        statusDiv.className = 'status';
+      }
+      
+      // Processar URL do stream
+      processBtn.addEventListener('click', async function() {
+        const url = m3u8UrlInput.value.trim();
+        if (!url) {
+          showStatus('Por favor, insira uma URL de stream válida', true);
+          return;
+        }
+        
+        try {
+          showStatus('Processando stream...');
+          
+          // Enviar URL para o servidor para obter ID
+          const response = await fetch('/register', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ url })
+          });
+          
+          if (!response.ok) {
+            throw new Error('Falha ao processar stream');
+          }
+          
+          const data = await response.json();
+          currentStreamId = data.id;
+          
+          // Habilitar botões
+          playBtn.disabled = false;
+          copyUrlBtn.disabled = false;
+          
+          // Mostrar URL gerada
+          const streamUrl = `${window.location.origin}/stream/${currentStreamId}`;
+          generatedUrlDiv.textContent = streamUrl;
+          generatedUrlDiv.style.display = 'block';
+          
+          showStatus('Stream processado com sucesso!');
+        } catch (error) {
+          console.error('Erro:', error);
+          showStatus('Erro ao processar stream: ' + error.message, true);
+        }
+      });
+      
+      // Reproduzir stream
+      playBtn.addEventListener('click', function() {
+        if (!currentStreamId) {
+          showStatus('Processe o stream primeiro', true);
+          return;
+        }
+        
+        // URL do stream proxy
+        const streamUrl = `/stream/${currentStreamId}`;
+        
+        // Carregar o stream no player
+        player.src({
+          src: streamUrl,
+          type: 'application/x-mpegURL'
+        });
+        
+        player.play().catch(error => {
+          console.error('Erro ao reproduzir:', error);
+        });
+        
+        showStatus('Reproduzindo stream...');
+      });
+      
+      // Copiar URL para compartilhamento
+      copyUrlBtn.addEventListener('click', function() {
+        if (!currentStreamId) {
+          showStatus('Processe o stream primeiro', true);
+          return;
+        }
+        
+        const streamUrl = `${window.location.origin}/stream/${currentStreamId}`;
+        
+        navigator.clipboard.writeText(streamUrl).then(() => {
+          showStatus('URL copiada para a área de transferência!');
+        }).catch(err => {
+          console.error('Erro ao copiar:', err);
+          showStatus('Erro ao copiar URL', true);
+        });
+      });
+    });
+  </script>
+</body>
+</html>
